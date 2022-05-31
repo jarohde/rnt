@@ -157,7 +157,7 @@ to all unique threads in a Reddit data set.
 ## Support
 
 For support, email
-[jarohde1\@gmail.com](mailto:jarohde1@gmail.com){.email}.
+[jarohde1\@gmail.com](mailto:jarohde1@gmail.com).
 
 ## License
 
