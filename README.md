@@ -31,7 +31,7 @@ Twitter: [\@jacobrohde](https://twitter.com/JacobRohde) \| GitHub:
 
     import rnt
 
-**Objects**
+**Objects and functions**
 
 -   `GetRedditData()`
 
