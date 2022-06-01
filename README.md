@@ -83,8 +83,7 @@ a pandas DataFrame object.
 
     rnt.GetRedditNetwork(reddit_dataset, 
                          edge_type, 
-                         text_attribute, 
-                         edge_by) 
+                         text_attribute) 
 
 **Overview:** A class object for generating edge and node lists, and a
 NetworkX graph object from a Reddit data set.
