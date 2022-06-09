@@ -1,47 +1,55 @@
+"""
+Package name: 'rnt' (Reddit Network Toolkit)
+Version number: 0.0.13,
+Author: Jacob Rohde,
+Author_email: jarohde1@gmail.com
+Description: A simple tool for generating and analyzing Reddit networks.
+Github url: https://github.com/jarohde/rnt
+License: MIT
+"""
+
 import pandas as pd
+from dataclasses import dataclass, field
 from pmaw import PushshiftAPI
 from datetime import datetime, timedelta
 import networkx as nx
 from math import nan
 pd.options.mode.chained_assignment = None
 
-
+@dataclass
 class GetRedditData:
 
-    def __init__(self, search_term, search_term_is_subreddit=False, size=None, start_date=None, end_date=None):
-        self.search_term = search_term
-        self.size = size
-        self.start_date = start_date
-        self.end_date = end_date
-        self.search_term_is_subreddit = search_term_is_subreddit
-        self.df = None
+    search_term: str
+    start_date: str
+    end_date: str
+    size: int = field(default=500)
+    start_date: str = field(default=None)
+    end_date: str = field(default=None)
+    search_term_is_subreddit: bool = field(default=True)
+    df: pd.DataFrame = field(init=False, default=None)
 
-        if search_term_is_subreddit is False:
+    def __post_init__(self):
+
+        if self.search_term_is_subreddit is False:
             if type(self.search_term) == list:
                 self.search_term = '|'.join(self.search_term)
 
-        if size is None:
-            self.size = 500
-
-        elif type(size) is str and size.lower() == 'all':
+        if type(self.size) is str and self.size.lower() == 'all':
             self.size = None
-
-        else:
-            self.size = size
 
         today = int(str(datetime.now().timestamp()).split('.')[0])
 
-        if start_date is not None:
+        if self.start_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            start_date = [int(d) for d in start_date.split(',')]
+            start_date = [int(d) for d in self.start_date.split(',')]
             self.start_date = int(datetime(start_date[0], start_date[1], start_date[2], 0, 0).timestamp())
 
         else:
             self.start_date = int(str(datetime.timestamp(datetime.today() - timedelta(days=7))).split('.')[0])
 
-        if end_date is not None:
+        if self.end_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            end_date = [int(d) for d in end_date.split(',')]
+            end_date = [int(d) for d in self.end_date.split(',')]
             self.end_date = int(datetime(end_date[0], end_date[1], end_date[2], 0, 0).timestamp())
 
         else:
@@ -53,12 +61,16 @@ class GetRedditData:
         else:
             collection_type = 'search term(s).'
 
-        search_string_prompt = f'Collecting {self.size} submissions and {self.size} comments from the "{self.search_term}" {collection_type}'
+        if self.size is None:
+            search_string_prompt = f'Collecting all submissions and comments from the "{self.search_term}" {collection_type}'
+        else:
+            search_string_prompt = f'Collecting {self.size} submissions and {self.size} comments from the "{self.search_term}" {collection_type}'
+
         print(search_string_prompt)
 
         api = PushshiftAPI()
 
-        if search_term_is_subreddit:
+        if self.search_term_is_subreddit:
             data_submissions = api.search_submissions(subreddit=self.search_term,
                                                       limit=self.size,
                                                       after=self.start_date,
@@ -127,9 +139,15 @@ class GetRedditData:
 
         df['created'] = df.created_utc.apply(lambda x: datetime.utcfromtimestamp(x))
 
+        df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'num_comments', 'parent_id',
+                 'score', 'distinguished', 'link_id', 'created_utc', 'created', 'post_type']]
+
+        df = df.sort_values(by='created_utc')
+        df = df.reset_index(drop=True)
+
         self.df = df
 
-    def __str__(self):
+    def __repr__(self):
 
         message = (f"Reddit data object:\n"
                    f"Search term(s): {self.search_term}\n"
@@ -141,65 +159,67 @@ class GetRedditData:
         return message
 
 
+@dataclass
 class GetRedditNetwork:
 
-    def __init__(self, reddit_dataset, edge_type='directed', edge_by=None, text_attribute=False):
+    reddit_dataset: pd.DataFrame()
+    edge_type: str = field(default='directed')
+    text_attribute: list = field(default=False)
+    edge_by: str = field(init=False, default='link_id')
+    edge_list: pd.DataFrame = field(init=False, default=None)
+    node_list: pd.DataFrame = field(init=False, default=None)
+    graph: nx.Graph() = field(init=False, default=None)
 
-        if 'GetRedditData' in str(type(reddit_dataset)):
-            reddit_dataset = reddit_dataset.df
+    def __post_init__(self):
+        if 'GetRedditData' in str(type(self.reddit_dataset)):
+            df = self.reddit_dataset.df
+        else:
+            df = self.reddit_dataset
 
-        self.df = reddit_dataset.loc[reddit_dataset.author != '[deleted]']
-        self.edge_by = edge_by
-        self.edge_type = edge_type
-        self.text_attribute = text_attribute
-        self.edge_list = None
-        self.node_list = None
-        self.graph = None
+        df = df.loc[df.author != '[deleted]']
+        df.fillna('', inplace=True)
 
-        self.df.fillna('', inplace=True)
-
-        if 'post_type' not in self.df.columns:
+        if 'post_type' not in df.columns:
             post_type = []
-            for row in self.df.link_id:
+            for row in df.link_id:
                 if row == '':
                     post_type.append('s')
                 else:
                     post_type.append('c')
-            self.df['post_type'] = post_type
+            df['post_type'] = post_type
 
         if self.text_attribute is not False:
             try:
                 if type(self.text_attribute) is list:
                     self.text_attribute = '|'.join(self.text_attribute)
-                self.text_attribute = self.text_attribute.lower()
-                self.df['text_attribute'] = self.df.title.str.lower().str.contains(self.text_attribute) | \
-                                            self.df.selftext.str.lower().str.contains(self.text_attribute) | \
-                                            self.df.body.str.lower().str.contains(self.text_attribute)
+                text_attribute = self.text_attribute.lower()
 
-                self.df.text_attribute = self.df.text_attribute.apply(lambda x: str(x))
+                df['text_attribute'] = df.title.str.lower().str.contains(text_attribute) | \
+                                            df.selftext.str.lower().str.contains(text_attribute) | \
+                                            df.body.str.lower().str.contains(text_attribute)
+
+                df.text_attribute = df.text_attribute.apply(lambda x: str(x))
 
             except (TypeError, AttributeError) as e:
                 print(f'Incorrect text attribute input (returned {e} error); ignoring.')
                 self.text_attribute = False
 
-        nodes = self.df.author.unique()
-        threads = self.df.loc[self.df.post_type == 's'].id.unique()
-        thread_separator = 'link_id'
+        nodes = df.author.unique()
+        threads = df.loc[df.post_type == 's'].id.unique()
 
-        if self.edge_by is not None and self.edge_by.lower() == 'parent':
-            threads = self.df.id.unique()
-            thread_separator = 'parent_id'
+        if self.edge_by.lower() == 'parent_id':
+            threads = df.id.unique()
 
         edge_dfs = []
 
         for thread in threads:
-            thread_df = self.df.loc[self.df[thread_separator].apply(lambda x: str(x)[3:] == thread)]
+            thread_df = df.loc[df[self.edge_by].apply(lambda x: str(x)[3:] == thread)]
 
-            author = list(self.df.loc[self.df.id == thread].author)[0]
-            thread_subreddit = list(self.df.loc[self.df.id == thread].subreddit)[0]
+            author = list(df.loc[df.id == thread].author)[0]
+            thread_subreddit = list(df.loc[df.id == thread].subreddit)[0]
 
             if self.text_attribute is not False:
-                thread_df_attribute = list(self.df.loc[self.df.id == thread].text_attribute)[0]
+                thread_df_attribute = list(df.loc[df.id == thread].text_attribute)[0]
 
             commenters = [commenter for commenter in thread_df.author if commenter != author]
 
@@ -235,7 +255,7 @@ class GetRedditNetwork:
         for node in nodes:
             in_degree_values.append(len(edge_list.loc[edge_list.poster == node]))
             out_degree_values.append(len(edge_list.loc[edge_list.commenter == node]))
-            node_subreddits.append(list(self.df.loc[self.df.author == node].subreddit.unique()))
+            node_subreddits.append(list(df.loc[df.author == node].subreddit.unique()))
 
         node_list = pd.DataFrame(list(zip(nodes, in_degree_values, out_degree_values, node_subreddits)),
                                  columns=['nodes', 'in_degree', 'out_degree', 'node_subreddits'])
@@ -259,7 +279,7 @@ class GetRedditNetwork:
         self.node_list = node_list
         self.graph = graph_object
 
-    def __str__(self):
+    def __repr__(self):
 
         message = (f"Reddit network object:\n"
                    f"Number of nodes: {len(self.node_list)}\n"
@@ -296,10 +316,10 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
             print('Incorrect subreddit_list argument; computing data for all subreddits in provided data.')
             subreddit_list = list(df.loc[df.post_type == 's'].subreddit.unique())
 
-    index = 0
+    first_subreddit = True
     for subreddit in subreddit_list:
         subreddit_df = df.loc[df.subreddit == subreddit]
-        subreddit_graph = GetRedditNetwork(subreddit_df, edge_by='link').graph
+        subreddit_graph = GetRedditNetwork(subreddit_df).graph
 
         connected_components = sorted(nx.strongly_connected_components(subreddit_graph), key=len, reverse=True)
         strongest_connected_component = subreddit_graph.subgraph(connected_components[0])
@@ -317,9 +337,9 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
                                 'mean_graph_degree': pd.Series(degrees).mean(),
                                 'median_graph_degree': pd.Series(degrees).median()}
 
-        if index == 0:
+        if first_subreddit:
             subreddit_batch_statistics_df = pd.DataFrame(subreddit_stats_dict, index=range(0, 1))
-            index = 1
+            first_subreddit = False
 
         else:
             subreddit_row = pd.DataFrame(subreddit_stats_dict, index=range(0, 1))
@@ -355,7 +375,7 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
     else:
         reddit_thread_list = list(df.loc[df.post_type == 's'].id.unique())
 
-    index = 0
+    first_thread = True
     for thread in reddit_thread_list:
         thread_df = df.loc[(df.link_id.apply(lambda x: x[3:] == thread)) |
                            (df.id == thread)]
@@ -408,9 +428,9 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
                        'std_dev_response_time_seconds': std_dev_response_time,
                        'median_response_time': median_response_time}
 
-        if index == 0:
+        if first_thread:
             thread_batch_dict = pd.DataFrame(thread_dict, index=range(0, 1))
-            index = 1
+            first_thread = False
 
         else:
             thread_row = pd.DataFrame(thread_dict, index=range(0, 1))
@@ -419,3 +439,51 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
         thread_statistics_df = thread_batch_dict.reset_index(drop=True)
 
     return thread_statistics_df
+
+
+def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset):
+
+    req_subs_columns = ['author', 'created_utc', 'subreddit', 'id']
+    req_coms_columns = ['author', 'created_utc', 'subreddit', 'link_id']
+
+    submissions_dataset['post_type'] = 's'
+    comments_dataset['post_type'] = 'c'
+
+    subs_check = any(col_name not in submissions_dataset.columns for col_name in req_subs_columns)
+    coms_check = any(col_name not in comments_dataset.columns for col_name in req_coms_columns)
+
+    if subs_check is True or coms_check is True:
+        if subs_check is True and coms_check is True:
+            string_return = 'the submissions and comments data sets'
+        elif subs_check is True:
+            string_return = 'the submissions data set'
+        else:
+            string_return = 'the comments data set'
+
+        return print(f'Incorrect columns in {string_return}.')
+
+    optional_subs_columns = [col for col in submissions_dataset.columns if col not in req_subs_columns]
+    optional_coms_columns = [col for col in comments_dataset.columns if col not in req_coms_columns]
+
+    merged_columns = set(optional_subs_columns +
+                         optional_coms_columns +
+                         req_subs_columns +
+                         req_coms_columns)
+
+    for column in merged_columns:
+        if column not in submissions_dataset.columns:
+            submissions_dataset[column] = ''
+        if column not in comments_dataset.columns:
+            comments_dataset[column] = ''
+
+    df = pd.concat([submissions_dataset, comments_dataset])
+
+    df['created'] = df.created_utc.apply(lambda x: datetime.utcfromtimestamp(int(x)))
+
+    df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'num_comments', 'parent_id',
+             'score', 'distinguished', 'link_id', 'created_utc', 'created', 'post_type']]
+
+    df = df.sort_values(by='created_utc')
+    df = df.reset_index(drop=True)
+
+    return df
