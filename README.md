@@ -63,7 +63,7 @@ provide a string of a single subreddit name (e.g., 'AskReddit').
 
 `search_term_is_subreddit`: Optional Boolean (True or False) argument to
 signify whether `GetRedditData()` extracts a subreddit data set; default
-set to False.
+set to True.
 
 `size`: Optional integer argument to signify how many Reddit submissions
 and comments to extract; default set to 500 each. `GetRedditData()`
