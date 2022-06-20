@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.0.13,
+Version number: 0.0.14,
 Author: Jacob Rohde,
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks.
@@ -8,52 +8,55 @@ Github url: https://github.com/jarohde/rnt
 License: MIT
 """
 
+__all__ = ['GetRedditData', 'GetRedditNetwork', 'subreddit_statistics',
+           'reddit_thread_statistics', 'merge_reddit_submissions_and_comments']
+
 import pandas as pd
-from dataclasses import dataclass, field
 from pmaw import PushshiftAPI
 from datetime import datetime, timedelta
 import networkx as nx
 from math import nan
 pd.options.mode.chained_assignment = None
 
-@dataclass
+
 class GetRedditData:
 
-    search_term: str
-    start_date: str
-    end_date: str
-    size: int = field(default=500)
-    start_date: str = field(default=None)
-    end_date: str = field(default=None)
-    search_term_is_subreddit: bool = field(default=True)
-    df: pd.DataFrame = field(init=False, default=None)
+    def __init__(self, search_term, **kwargs):
 
-    def __post_init__(self):
+        self.search_term = search_term
+        self.search_term_is_subreddit = kwargs.get('search_term_is_subreddit', False)
+        self.start_date = kwargs.get('start_date', None)
+        self.end_date = kwargs.get('end_date', None)
+        self.size = kwargs.get('size', 500)
+        self.df = pd.DataFrame
 
         if self.search_term_is_subreddit is False:
             if type(self.search_term) == list:
                 self.search_term = '|'.join(self.search_term)
 
-        if type(self.size) is str and self.size.lower() == 'all':
-            self.size = None
+        if str(self.size).lower() == 'all':
+            limit = None
+
+        else:
+            limit = self.size
 
         today = int(str(datetime.now().timestamp()).split('.')[0])
 
         if self.start_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            start_date = [int(d) for d in self.start_date.split(',')]
-            self.start_date = int(datetime(start_date[0], start_date[1], start_date[2], 0, 0).timestamp())
+            after = [int(d) for d in self.start_date.split(',')]
+            after = int(datetime(after[0], after[1], after[2], 0, 0).timestamp())
 
         else:
-            self.start_date = int(str(datetime.timestamp(datetime.today() - timedelta(days=7))).split('.')[0])
+            after = int(str(datetime.timestamp(datetime.today() - timedelta(days=7))).split('.')[0])
 
         if self.end_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            end_date = [int(d) for d in self.end_date.split(',')]
-            self.end_date = int(datetime(end_date[0], end_date[1], end_date[2], 0, 0).timestamp())
+            before = [int(d) for d in self.end_date.split(',')]
+            before = int(datetime(before[0], before[1], before[2], 0, 0).timestamp())
 
         else:
-            self.end_date = today
+            before = today
 
         if self.search_term_is_subreddit:
             collection_type = 'subreddit.'
@@ -61,42 +64,39 @@ class GetRedditData:
         else:
             collection_type = 'search term(s).'
 
-        if self.size is None:
-            search_string_prompt = f'Collecting all submissions and comments from the "{self.search_term}" {collection_type}'
+        if limit is None:
+            search_string_prompt = f'Collecting all submissions and comments from the "{self.search_term}" ' \
+                                   f'{collection_type}'
+
         else:
-            search_string_prompt = f'Collecting {self.size} submissions and {self.size} comments from the "{self.search_term}" {collection_type}'
+            search_string_prompt = f'Collecting {limit} submissions and their comments from the "{self.search_term}" ' \
+                                   f'{collection_type}'
 
         print(search_string_prompt)
 
         api = PushshiftAPI()
 
-        if self.search_term_is_subreddit:
-            data_submissions = api.search_submissions(subreddit=self.search_term,
-                                                      limit=self.size,
-                                                      after=self.start_date,
-                                                      before=self.end_date,
-                                                      mem_safe=True)
+        submission_kwargs = {'limit': limit, 'after': after, 'before': before, 'mem_safe': True}
 
-            data_comments = api.search_comments(subreddit=self.search_term,
-                                                limit=self.size,
-                                                after=self.start_date,
-                                                before=self.end_date,
-                                                mem_safe=True)
+        if self.search_term_is_subreddit:
+            submission_kwargs['subreddit'] = self.search_term
 
         else:
-            data_submissions = api.search_submissions(q=self.search_term,
-                                                      limit=self.size,
-                                                      after=self.start_date,
-                                                      before=self.end_date,
-                                                      mem_safe=True)
+            submission_kwargs['q'] = self.search_term
 
-            data_comments = api.search_comments(q=self.search_term,
-                                                limit=self.size,
-                                                after=self.start_date,
-                                                before=self.end_date,
-                                                mem_safe=True)
+        submissions_data = api.search_submissions(**submission_kwargs)
 
-        collected_data_list = [row for row in data_submissions] + [row for row in data_comments]
+        submissions_data = [row for row in submissions_data]
+
+        submission_ids = [row['id'] for row in submissions_data if row['num_comments'] > 0]
+
+        comment_kwargs = {'q': '*', 'link_id': submission_ids, 'mem_safe': True}
+
+        comments_data = api.search_comments(**comment_kwargs)
+
+        comments_data = [comment for comment in comments_data]
+
+        collected_data_list = submissions_data + comments_data
 
         title, body, selftext, author, score, created_utc, id, \
             link_id, parent_id, subreddit, num_comments, distinguished, post_type = \
@@ -152,41 +152,50 @@ class GetRedditData:
         message = (f"Reddit data object:\n"
                    f"Search term(s): {self.search_term}\n"
                    f"Search term is subreddit: {self.search_term_is_subreddit}\n"
-                   f"Dataframe size: {len(self.df)}\n"
-                   f"Collection start date: {str(datetime.utcfromtimestamp(self.start_date)).split()[0]}\n"
-                   f"Collection end date: {str(datetime.utcfromtimestamp(self.end_date)).split()[0]}")
+                   f"Dataframe size: {len(self.df)}\n")
 
         return message
 
+    def write_data(self, **kwargs):
 
-@dataclass
+        file_type = kwargs.get('file_type', 'json')
+        file_name = kwargs.get('file_name', self.search_term)
+
+        if file_type.lower() != 'json' and file_type.lower() != 'csv' or type(file_type) != str:
+            return 'Error: File type only supports .csv or .json extensions.'
+
+        else:
+            name = f'{file_name}.{file_type.lower()}'
+            print(f'Writing {name} to file.')
+
+            if file_type.lower() == 'json':
+                self.df.to_json(name, orient='records', lines=True)
+
+            if file_type.lower() == 'csv':
+                self.df.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+
+
 class GetRedditNetwork:
 
-    reddit_dataset: pd.DataFrame()
-    edge_type: str = field(default='directed')
-    text_attribute: list = field(default=False)
-    edge_by: str = field(init=False, default='link_id')
-    edge_list: pd.DataFrame = field(init=False, default=None)
-    node_list: pd.DataFrame = field(init=False, default=None)
-    graph: nx.Graph() = field(init=False, default=None)
+    def __init__(self, reddit_dataset, **kwargs):
 
-    def __post_init__(self):
+        self.reddit_dataset = reddit_dataset
+        self.edge_type = kwargs.get('edge_type', 'directed')
+        self.text_attribute = kwargs.get('text_attribute', False)
+        self.edge_by = kwargs.get('edge_by', 'link_id')
+        self.edge_list = pd.DataFrame
+        self.node_list = pd.DataFrame
+        self.graph = nx.Graph
+
         if 'GetRedditData' in str(type(self.reddit_dataset)):
             df = self.reddit_dataset.df
+
         else:
             df = self.reddit_dataset
 
         df = df.loc[df.author != '[deleted]']
         df.fillna('', inplace=True)
-
-        if 'post_type' not in df.columns:
-            post_type = []
-            for row in df.link_id:
-                if row == '':
-                    post_type.append('s')
-                else:
-                    post_type.append('c')
-            df['post_type'] = post_type
+        df = add_post_type_column(df)
 
         if self.text_attribute is not False:
             try:
@@ -195,8 +204,8 @@ class GetRedditNetwork:
                 text_attribute = self.text_attribute.lower()
 
                 df['text_attribute'] = df.title.str.lower().str.contains(text_attribute) | \
-                                            df.selftext.str.lower().str.contains(text_attribute) | \
-                                            df.body.str.lower().str.contains(text_attribute)
+                                       df.selftext.str.lower().str.contains(text_attribute) | \
+                                       df.body.str.lower().str.contains(text_attribute)
 
                 df.text_attribute = df.text_attribute.apply(lambda x: str(x))
 
@@ -231,15 +240,14 @@ class GetRedditNetwork:
             else:
                 commenter_list = commenter_list + commenters
 
-            author_list = [author]*len(commenter_list)
-            subreddit_list = [thread_subreddit]*len(commenter_list)
+            author_list = [author] * len(commenter_list)
+            subreddit_list = [thread_subreddit] * len(commenter_list)
 
             if self.text_attribute is not False:
-                text_attribute_list = [thread_df_attribute]*len(commenter_list)
+                text_attribute_list = [thread_df_attribute] * len(commenter_list)
 
             else:
-                text_attribute_list = ['']*len(commenter_list)
-
+                text_attribute_list = [''] * len(commenter_list)
 
             edge_dfs.append(
                 pd.DataFrame(list(zip(author_list, commenter_list, subreddit_list, text_attribute_list)),
@@ -287,6 +295,30 @@ class GetRedditNetwork:
 
         return message
 
+    def write_data(self, **kwargs):
+
+        file_type = kwargs.get('file_type', 'json')
+        file_list = ['node_list', 'edge_list']
+
+        if file_type.lower() != 'json' and file_type.lower() != 'csv' or type(file_type) != str:
+            return 'Error: File type only supports .csv or .json extensions.'
+
+        for file in file_list:
+            name = f'{file}.{file_type.lower()}'
+            print(f'Writing {name} to file.')
+
+            if file_type.lower() == 'json':
+                if file == 'node_list':
+                    self.node_list.to_json(name, orient='records', lines=True)
+                else:
+                    self.edge_list.to_json(name, orient='records', lines=True)
+
+            if file_type.lower() == 'csv':
+                if file == 'node_list':
+                    self.node_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+                else:
+                    self.edge_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+
 
 def subreddit_statistics(reddit_dataset, subreddit_list=None):
 
@@ -296,14 +328,7 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
     df = reddit_dataset.loc[reddit_dataset.author != '[deleted]']
     df.fillna('', inplace=True)
 
-    if 'post_type' not in df.columns:
-        post_type = []
-        for row in df.link_id:
-            if row == '':
-                post_type.append('s')
-            else:
-                post_type.append('c')
-        df['post_type'] = post_type
+    df = add_post_type_column(df)
 
     if subreddit_list is None:
         subreddit_list = list(df.loc[df.post_type == 's'].subreddit.unique())
@@ -356,14 +381,7 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
     df = reddit_dataset.loc[reddit_dataset.author != '[deleted]']
     df.fillna('', inplace=True)
 
-    if 'post_type' not in df.columns:
-        post_type = []
-        for row in df.link_id:
-            if row == '':
-                post_type.append('s')
-            else:
-                post_type.append('c')
-        df['post_type'] = post_type
+    df = add_post_type_column(df)
 
     if reddit_thread_list is not None:
         if type(reddit_thread_list) is list:
@@ -485,5 +503,19 @@ def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset)
 
     df = df.sort_values(by='created_utc')
     df = df.reset_index(drop=True)
+
+    return df
+
+
+def add_post_type_column(df):
+
+    if 'post_type' not in df.columns:
+        post_type = []
+        for row in df.link_id:
+            if row == '':
+                post_type.append('s')
+            else:
+                post_type.append('c')
+        df['post_type'] = post_type
 
     return df
