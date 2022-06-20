@@ -7,16 +7,17 @@ data sets.
 
 **Jacob Rohde**
 
-Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \|
-Twitter: [\@jacobrohde](https://twitter.com/JacobRohde) \| GitHub:
+Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter:
+[\@jacobrohde](https://twitter.com/JacobRohde) \| GitHub:
 [\@jarohde](https://github.com/jarohde)
 
 ## Features
 
--   Extracts a simple data set of both Reddit submissions and comments
-    via keyword or subreddit search terms.
+-   Extracts a simple data set of Reddit submissions and their
+    associated comments via keyword or subreddit search terms.
 
--   Provides single and batch subreddit- and thread-level network statistics.
+-   Provides single and batch subreddit- and thread-level network
+    statistics.
 
 -   Generates edge and node lists, and creates network objects (via
     NetworkX) from Reddit data sets. Networks:
@@ -62,22 +63,30 @@ subreddit data set (see '`search_term_is_subreddit`' below), only
 provide a string of a single subreddit name (e.g., 'AskReddit').
 
 `search_term_is_subreddit`: Optional Boolean (True or False) argument to
-signify whether `GetRedditData()` extracts a subreddit data set; default
-set to True.
+signify whether `GetRedditData` extracts a subreddit data set; default
+set to False.
 
 `size`: Optional integer argument to signify how many Reddit submissions
-and comments to extract; default set to 500 each. `GetRedditData()`
-should only be used to extract limited or exploratory data sets. I
-recommend using the Pushshift Reddit repository for extracting large
-data sets.
+and their associated comments to extract; default set to 500 submission.
+`GetRedditData` should only be used to extract limited or exploratory
+data sets. I recommend using the Pushshift Reddit repository for
+extracting large data sets.
 
-`start_date`/`end_date`: Optional date arguments for `GetRedditData()`;
+`start_date`/`end_date`: Optional date arguments for `GetRedditData`;
 default end date set to current date and default start date set to one
 week prior. Format should be string objects organized like 'YYYY, MM,
 DD' (e.g., `start_date='2022, 5, 27'` for May 27, 2022).
 
-`GetRedditData().df`: Object attribute; extracts the Reddit data set as
-a pandas DataFrame object.
+`GetRedditData.df`: Object attribute; extracts the Reddit data set as a
+pandas DataFrame object.
+
+`GetRedditData.write_data()`: Object method that writes the pandas
+DataFrame object to file. The method can take `file_type` and
+`file_name` as optional parameters. `file_type` indicates what file
+format to use when writing the data set and accepts a string argument of
+either 'json' or 'csv'; default set to 'json'. `file_name` takes a
+string to indicate what the file name should be saved as; default set to
+the search term provided.
 
 ### GetRedditNetwork()
 
@@ -91,7 +100,7 @@ NetworkX graph object from a Reddit data set.
 **Arguments/attributes:**
 
 `reddit_dataset`: The only required argument. Takes a Reddit data set or
-a `GetRedditData()` object.
+a `GetRedditData` object.
 
 `edge_type`: Optional string argument of either 'directed' or
 'undirected' to signify network edge type; default set to directed.
@@ -101,15 +110,22 @@ edge attribute based on a text category. Result will return True or
 False for a network edge if the Reddit submission initiating the edge
 contains the provided keyword(s).
 
-`GetRedditNetwork().edge_list`: Returns a pandas DataFrame of the
-network edge list with columns for the poster, commenter, the subreddit the
-edge occurred in, and an optional text attribute column.
+`GetRedditNetwork.edge_list`: Returns a pandas DataFrame of the network
+edge list with columns for the poster, commenter, the subreddit the edge
+occurred in, and an optional text attribute column.
 
-`GetRedditNetwork().node_list`: Returns a pandas DataFrame of the network node
-list with columns for each unique node, the node's in-degree and out-degree values, and a list of subreddits the
-node participated in within the network.
+`GetRedditNetwork.node_list`: Returns a pandas DataFrame of the network
+node list with columns for each unique node, the node's in-degree and
+out-degree values, and a list of subreddits the node participated in
+within the network.
 
-`GetRedditNetwork().graph`: Returns a NetworkX graph object.
+`GetRedditNetwork.graph`: Returns a NetworkX graph object.
+
+`GetRedditNetwork.write_data()`: Object method that writes the
+`edge_list` and `node_list` attributes to file. The method can take
+`file_type` as an optional parameter. `file_type` indicates what file
+format to use when writing the data sets and accepts a string argument
+of either 'json' or 'csv'; default set to 'json'.
 
 ### subreddit_statistics()
 
@@ -121,11 +137,11 @@ DataFrame with example subreddit network statistics including number of
 nodes, edges, and network density, among others.
 
 `reddit_dataset`: The only required argument. Takes a Reddit data set or
-a `GetRedditData()` object.
+a `GetRedditData` object.
 
 `subreddit_list`: An optional list argument to indicate the specific
-subreddits to compute analyses for; default set to all unique subreddits in a data
-set that Reddit submissions were published in.
+subreddits to compute analyses for; default set to all unique subreddits
+in a data set that Reddit submissions were published in.
 
 ### reddit_thread_statistics()
 
@@ -138,7 +154,7 @@ including the number of unique commenters to the thread, and the
 earliest/latest response times to the thread, among others.
 
 `reddit_dataset`: The only required argument. Takes a Reddit data set or
-a `GetRedditData()` object.
+a `GetRedditData` object.
 
 `reddit_thread_list`: An optional list argument to provide the specific
 Reddit thread IDs (i.e., Reddit submission IDs) to analyze; default set
@@ -154,8 +170,7 @@ to all unique threads in a Reddit data set.
 
 ## Support
 
-For support, email
-[jarohde1\@gmail.com](mailto:jarohde1@gmail.com).
+For support, email [jarohde1\@gmail.com](mailto:jarohde1@gmail.com).
 
 ## License
 
