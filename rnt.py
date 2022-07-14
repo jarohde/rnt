@@ -1,7 +1,7 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.0.14,
-Author: Jacob Rohde,
+Version number: 0.1.0,
+Author: Jacob A. Rohde,
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks.
 Github url: https://github.com/jarohde/rnt
@@ -10,7 +10,6 @@ License: MIT
 
 __all__ = ['GetRedditData', 'GetRedditNetwork', 'subreddit_statistics',
            'reddit_thread_statistics', 'merge_reddit_submissions_and_comments']
-
 import pandas as pd
 from pmaw import PushshiftAPI
 from datetime import datetime, timedelta
@@ -20,6 +19,36 @@ pd.options.mode.chained_assignment = None
 
 
 class GetRedditData:
+    """
+    A class object for extracting a Reddit data set.
+
+    Parameters:
+
+    - search_term: The only required parameter; takes a string object (or list of strings) as a keyword for
+      searching Reddit submissions.
+
+    - search_term_is_subreddit: Optional Boolean (True or False) argument to signify whether GetRedditData extracts
+      a subreddit data set; default set to False.
+
+    - size: Optional integer argument to signify how many Reddit submissions and their associated comments to
+      extract; default set to 500 submission. GetRedditData should only be used to extract limited or exploratory
+      data sets. I recommend using the Pushshift Reddit repository for extracting large data sets.
+
+    - start_date/end_date: Optional date arguments for GetRedditData; default end date set to current date and
+      default start date set to one week prior. Format should be string objects organized like 'YYYY, MM, DD'
+      (e.g., start_date='2022, 5, 27' for May 27, 2022).
+
+    Attributes:
+
+    - GetRedditData.df: Extracts the Reddit data set as a pandas DataFrame object.
+
+    Methods:
+
+    - GetRedditData.write_data(): Object method that writes the pandas DataFrame object to file. The method can take
+      file_type and file_name as optional parameters. file_type indicates what file format to use when writing the data
+      set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. file_name takes a string to
+      indicate what the file name should be saved as; default set to the search term provided.
+    """
 
     def __init__(self, search_term, **kwargs):
 
@@ -152,11 +181,23 @@ class GetRedditData:
         message = (f"Reddit data object:\n"
                    f"Search term(s): {self.search_term}\n"
                    f"Search term is subreddit: {self.search_term_is_subreddit}\n"
-                   f"Dataframe size: {len(self.df)}\n")
+                   f"Total dataframe size: {len(self.df)}\n"
+                   f"Number of Reddit submissions: {len(self.df.loc[self.df.post_type == 's'])}\n"
+                   f"Number of Reddit comments: {len(self.df.loc[self.df.post_type == 'c'])}\n")
 
         return message
 
     def write_data(self, **kwargs):
+        """
+        A method for saving Reddit data to file.
+
+        Parameters:
+
+        - file_type: Accepts a string of either 'json' or 'csv'; default set to 'json'.
+
+        - file_name Accepts a string to indicate what the file name should be saved as; default set to the search term
+          provided.
+        """
 
         file_type = kwargs.get('file_type', 'json')
         file_name = kwargs.get('file_name', self.search_term)
@@ -176,6 +217,42 @@ class GetRedditData:
 
 
 class GetRedditNetwork:
+    """
+    A class object for generating edge and node lists, and a NetworkX graph object from a Reddit data set.
+
+    Parameters:
+
+    - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
+
+    - edge_type: Optional string argument of either 'directed' or 'undirected' to signify network edge type; default
+      set to directed.
+
+    - text_attribute: Optional string, list, or dictionary argument to characterize an edge attribute based on one or
+      more text categories. Result will return True or False for a network edge if the Reddit submission initiating the
+      edge contains the provided keyword(s). Providing the argument with a string or list data type will generate a
+      single text attribute column in the edge list and NetworkX graph object. Providing the argument with a dictionary
+      data type will generate multiple text attribute columns. Dictionary text attribute example:
+
+      text_attribute={'apples': ['fuji', 'red delicious', 'granny smith'],
+                      'oranges': ['valencia', 'mandarin', 'tangerine'],
+                      'berries': ['blueberry', 'raspberry', 'blackberry']}
+
+    Attributes:
+
+    - GetRedditNetwork.edge_list: Returns a pandas DataFrame of the network edge list with columns for the poster,
+      commenter, the subreddit the edge occurred in, and an optional text attribute column.
+
+    - GetRedditNetwork.node_list: Returns a pandas DataFrame of the network node list with columns for each unique node,
+      the node's in-degree and out-degree values, and a list of subreddits the node participated in within the network.
+
+    - GetRedditNetwork.graph: Returns a NetworkX graph object.
+
+    Methods:
+
+    - GetRedditData.write_data(): Object method that writes the edge_list and node_list attributes to file. The method
+      can take file_type as an optional parameter. file_type indicates what file format to use when writing the data
+      sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'.
+    """
 
     def __init__(self, reddit_dataset, **kwargs):
 
@@ -201,13 +278,30 @@ class GetRedditNetwork:
             try:
                 if type(self.text_attribute) is list:
                     self.text_attribute = '|'.join(self.text_attribute)
-                text_attribute = self.text_attribute.lower()
 
-                df['text_attribute'] = df.title.str.lower().str.contains(text_attribute) | \
-                                       df.selftext.str.lower().str.contains(text_attribute) | \
-                                       df.body.str.lower().str.contains(text_attribute)
+                if type(self.text_attribute) is str:
+                    text_attribute = self.text_attribute.lower()
 
-                df.text_attribute = df.text_attribute.apply(lambda x: str(x))
+                    df['text_attribute'] = df.title.str.lower().str.contains(text_attribute) | \
+                                           df.selftext.str.lower().str.contains(text_attribute) | \
+                                           df.body.str.lower().str.contains(text_attribute)
+
+                    df.text_attribute = df.text_attribute.apply(lambda x: str(x))
+
+                if type(self.text_attribute) is dict:
+                    for key in self.text_attribute:
+                        if type(self.text_attribute[key]) is list:
+                            values = '|'.join(self.text_attribute[key])
+                        else:
+                            values = self.text_attribute[key]
+
+                        df[f'text_attribute_{key}'] = df.title.str.lower().str.contains(values) | \
+                                  df.selftext.str.lower().str.contains(values) | \
+                                  df.body.str.lower().str.contains(values)
+
+                        df[f'text_attribute_{key}'] = df[f'text_attribute_{key}'].apply(lambda x: str(x))
+
+                text_attribute_columns = [col for col in df.columns if 'text_attribute' in col]
 
             except (TypeError, AttributeError) as e:
                 print(f'Incorrect text attribute input (returned {e} error); ignoring.')
@@ -227,9 +321,6 @@ class GetRedditNetwork:
             author = list(df.loc[df.id == thread].author)[0]
             thread_subreddit = list(df.loc[df.id == thread].subreddit)[0]
 
-            if self.text_attribute is not False:
-                thread_df_attribute = list(df.loc[df.id == thread].text_attribute)[0]
-
             commenters = [commenter for commenter in thread_df.author if commenter != author]
 
             commenter_list = []
@@ -243,15 +334,14 @@ class GetRedditNetwork:
             author_list = [author] * len(commenter_list)
             subreddit_list = [thread_subreddit] * len(commenter_list)
 
+            thread_edge_df = pd.DataFrame(list(zip(author_list, commenter_list, subreddit_list)),
+                             columns=['poster', 'commenter', 'subreddit'])
+
             if self.text_attribute is not False:
-                text_attribute_list = [thread_df_attribute] * len(commenter_list)
+                for col in text_attribute_columns:
+                    thread_edge_df[col] = list(df.loc[df.id == thread][col])[0]
 
-            else:
-                text_attribute_list = [''] * len(commenter_list)
-
-            edge_dfs.append(
-                pd.DataFrame(list(zip(author_list, commenter_list, subreddit_list, text_attribute_list)),
-                             columns=['poster', 'commenter', 'subreddit', 'text_attribute']))
+            edge_dfs.append(thread_edge_df)
 
         edge_list = pd.concat(edge_dfs, ignore_index=True)
         edge_list = edge_list.loc[edge_list.commenter != '']
@@ -273,12 +363,23 @@ class GetRedditNetwork:
         for node, attribute in zip(nodes, node_subreddits):
             graph_object.add_node(node, subreddit_list=attribute)
 
-        for n1, n2, sub_attribute, text_attribute in \
-                zip(edge_list.commenter, edge_list.poster, edge_list.subreddit, edge_list.text_attribute):
-            graph_object.add_edge(n1, n2, subreddit=sub_attribute, text_attribute=text_attribute)
+        for n1, n2 in zip(edge_list.poster, edge_list.commenter):
+            graph_object.add_edge(n1, n2)
 
-        if self.text_attribute is False:
-            del edge_list['text_attribute']
+        attrs = {}
+        edge_list_index = 0
+        for n1, n2, subreddit in zip(edge_list.poster, edge_list.commenter, edge_list.subreddit):
+            edge_attr_dict = {}
+            edge_attr_dict = {**edge_attr_dict, **{'subreddit': subreddit}}
+
+            if self.text_attribute is not False:
+                for col in text_attribute_columns:
+                    edge_attr_dict = {**edge_attr_dict, **{col: edge_list[col][edge_list_index]}}
+
+            edge_list_index += 1
+            attrs[(n1, n2)] = edge_attr_dict
+
+        nx.set_edge_attributes(graph_object, attrs)
 
         if self.edge_type.lower() == 'undirected':
             graph_object = graph_object.to_undirected()
@@ -296,16 +397,32 @@ class GetRedditNetwork:
         return message
 
     def write_data(self, **kwargs):
+        """
+        A method for saving the edge and node data to file.
+
+        Parameter:
+
+        - file_type: Accepts a string of either 'json' or 'csv'; default set to 'json'.
+
+        - file_name: Accepts a string to indicate what the edge and node list files should be saved as; default set to
+          'edge_list' and 'node_list'.
+        """
 
         file_type = kwargs.get('file_type', 'json')
+        file_name = kwargs.get('file_name', '')
         file_list = ['node_list', 'edge_list']
 
         if file_type.lower() != 'json' and file_type.lower() != 'csv' or type(file_type) != str:
             return 'Error: File type only supports .csv or .json extensions.'
 
         for file in file_list:
-            name = f'{file}.{file_type.lower()}'
-            print(f'Writing {name} to file.')
+            if type(file_name) is str and file_name != '':
+                f_name = f'{file}_{file_name}'
+            else:
+                f_name = file
+
+            name = f'{f_name}.{file_type.lower()}'
+            print(f'Writing {f_name} to file.')
 
             if file_type.lower() == 'json':
                 if file == 'node_list':
@@ -321,6 +438,19 @@ class GetRedditNetwork:
 
 
 def subreddit_statistics(reddit_dataset, subreddit_list=None):
+    """
+    A function for extracting basic statistics for single or batch subreddit networks.
+
+    Parameters:
+
+    - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
+
+    - subreddit_list: An optional list argument to indicate the specific subreddits to compute analyses for; default
+      set to all unique subreddits in a data set that Reddit submissions were published in.
+
+    Returns: The function currently returns a single pandas DataFrame with example subreddit network statistics
+    including number of nodes, edges, and network density, among others.
+    """
 
     if 'GetRedditData' in str(type(reddit_dataset)):
         reddit_dataset = reddit_dataset.df
@@ -374,6 +504,20 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
 
 
 def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
+    """
+    A function for extracting basic statistics for single or batch Reddit threads (initiated by Reddit
+    submissions).
+
+    Parameters:
+
+    - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
+
+    - reddit_thread_list: An optional list argument to provide the specific Reddit thread IDs (i.e., Reddit submission
+      IDs) to analyze; default set to all unique threads in a Reddit data set.
+
+    Returns: The function currently returns a single pandas DataFrame with example subreddit network statistics
+    including number of nodes, edges, and network density, among others.
+    """
 
     if 'GetRedditData' in str(type(reddit_dataset)):
         reddit_dataset = reddit_dataset.df
@@ -460,6 +604,10 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
 
 
 def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset):
+    """
+    A function for merging separate Reddit submission and comment data sets into a single data set
+    (currently functional but a work in progress).
+    """
 
     req_subs_columns = ['author', 'created_utc', 'subreddit', 'id']
     req_coms_columns = ['author', 'created_utc', 'subreddit', 'link_id']
@@ -470,10 +618,10 @@ def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset)
     subs_check = any(col_name not in submissions_dataset.columns for col_name in req_subs_columns)
     coms_check = any(col_name not in comments_dataset.columns for col_name in req_coms_columns)
 
-    if subs_check is True or coms_check is True:
-        if subs_check is True and coms_check is True:
+    if subs_check or coms_check:
+        if subs_check and coms_check:
             string_return = 'the submissions and comments data sets'
-        elif subs_check is True:
+        elif subs_check:
             string_return = 'the submissions data set'
         else:
             string_return = 'the comments data set'
@@ -508,6 +656,9 @@ def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset)
 
 
 def add_post_type_column(df):
+    """
+    An internal function for identifying Reddit dataset columns and appending a post_type column.
+    """
 
     if 'post_type' not in df.columns:
         post_type = []
