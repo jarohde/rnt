@@ -17,14 +17,20 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 -   Generates edge and node lists, and creates network objects (via NetworkX) from Reddit data sets. Networks:
 
     -   can be directed or undirected;
-    -   contain subreddit node and edge attributes;
+
+    -   contain subreddit node attributes;
+
+    -   contain subreddit and weight edge attributes;
+
     -   allow for optional text classification attributes.
+
+-   Can visualize simple graphs via Matplotlib.
 
 ## General
 
 **Current version:**
 
-0.1.0 (released 07/14/22)
+0.1.1 (released 07/20/22)
 
 **Import RNT library:**
 
@@ -39,6 +45,8 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 -   `subreddit_statistics()`
 
 -   `reddit_thread_statistics()`
+
+-   `single_network_plot()`
 
 ## Usage
 
@@ -64,7 +72,7 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 `GetRedditData.df`: Object attribute; extracts the Reddit data set as a pandas DataFrame object.
 
-`GetRedditData.write_data()`: Object method that writes the pandas DataFrame object to file. The method can take `file_type` and `file_name` as optional parameters. `file_type` indicates what file format to use when writing the data set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what the file name should be saved as; default set to the search term provided.
+`GetRedditData.write_data()`: Object method that writes the pandas DataFrame object to file. The method can take `file_type` and `file_name` as optional arguments. `file_type` indicates what file format to use when writing the data set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what the file name should be saved as; default set to the search term provided.
 
 ### GetRedditNetwork()
 
@@ -92,13 +100,15 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 `GetRedditNetwork.graph`: Returns a NetworkX graph object.
 
-`GetRedditNetwork.write_data()`: Object method that writes the `edge_list` and `node_list` attributes to file. The method can take `file_type` and `file_name` as optional parameters. `file_type` indicates what file format to use when writing the data sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what to append at the end of the edge and node list file names (e.g., `file_name='apple'` will save the files as 'edge_list_apple.json' and 'node_list_apple.json').
+`GetRedditNetwork.write_data()`: Object method that writes the `edge_list` and `node_list` attributes to file. The method can take `file_type` and `file_name` as optional arguments. `file_type` indicates what file format to use when writing the data sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what to append at the end of the edge and node list file names (e.g., `file_name='apple'` will save the files as 'edge_list_apple.json' and 'node_list_apple.json').
 
 ### subreddit_statistics()
 
     rnt.subreddit_statistics(reddit_dataset, subreddit_list) 
 
 **Overview:** A function for extracting basic statistics for single or batch subreddit networks. The function currently returns a single pandas DataFrame with example subreddit network statistics including number of nodes, edges, and network density, among others.
+
+**Arguments:**
 
 `reddit_dataset`: The only required argument. Takes a Reddit data set or a `GetRedditData` object.
 
@@ -110,16 +120,48 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 **Overview:** A function for extracting basic statistics for single or batch Reddit threads (initiated by Reddit submissions). The function currently returns a single pandas DataFrame with example statistics including the number of unique commenters to the thread, and the earliest/latest response times to the thread, among others.
 
+**Arguments:**
+
 `reddit_dataset`: The only required argument. Takes a Reddit data set or a `GetRedditData` object.
 
 `reddit_thread_list`: An optional list argument to provide the specific Reddit thread IDs (i.e., Reddit submission IDs) to analyze; default set to all unique threads in a Reddit data set.
 
+### single_network_plot()
+
+    rnt.single_network_plot(network, **kwargs)
+
+**Overview:** A simple function for plotting networks via NetworkX and Matplotlib (additional install required). Please note this function is currently a work in progress and is meant to be basic tool to plot a single graph. See NetworkX documentation for more advanced plotting needs.
+
+**Arguments:**
+
+`network`: The only required argument. Takes a `GetRedditNetwork` or NetworkX graph object.
+
+`title`: Optional string argument to add a title to the plot.
+
+`pos`: Optional string argument to set the NetworkX plotting algorithm. For ease of use, the argument currently accepts one of the following layout types as a string:
+
+-   'spring_layout' (default)
+-   'kamada_kawai_layout'
+-   'circular_layout'
+-   'random_layout'
+
+`**kwargs`: The function also accepts several other NetworkX keyword arguments for plotting (please see NetworkX documentation for more info on these arguments). Currently accepted arguments include:
+
+-   'arrows' (bool)
+-   'arrowsize' (int)
+-   'edge_color' (str or list/array)
+-   'node_color' (str or list/array)
+-   'node_size' (str or list/array)
+-   'width' (int/float or list/array)
+-   'with_labels' (bool)
+
 ## Requirements
 
 -   Python 3.XX
--   pandas - a Python library for data management.
--   NetworkX - a Python library for network analysis.
+-   pandas - a Python library for data management
+-   NetworkX - a Python library for network analysis
 -   PMAW - a multithread tool for extracting Reddit data via the [Pushshift API](https://pushshift.io/api-parameters/)
+-   Matplotlib (only if using the `single_network_plot()` function) - a Python library for plotting
 
 ## Support
 
