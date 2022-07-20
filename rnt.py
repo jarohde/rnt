@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.0,
+Version number: 0.1.1,
 Author: Jacob A. Rohde,
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks.
@@ -8,12 +8,13 @@ Github url: https://github.com/jarohde/rnt
 License: MIT
 """
 
-__all__ = ['GetRedditData', 'GetRedditNetwork', 'subreddit_statistics',
-           'reddit_thread_statistics', 'merge_reddit_submissions_and_comments']
+__all__ = ['GetRedditData', 'GetRedditNetwork', 'subreddit_statistics', 'reddit_thread_statistics',
+           'merge_reddit_submissions_and_comments', 'single_network_plot']
+
 import pandas as pd
+import networkx as nx
 from pmaw import PushshiftAPI
 from datetime import datetime, timedelta
-import networkx as nx
 from math import nan
 pd.options.mode.chained_assignment = None
 
@@ -22,7 +23,7 @@ class GetRedditData:
     """
     A class object for extracting a Reddit data set.
 
-    Parameters:
+    Arguments:
 
     - search_term: The only required parameter; takes a string object (or list of strings) as a keyword for
       searching Reddit submissions.
@@ -45,7 +46,7 @@ class GetRedditData:
     Methods:
 
     - GetRedditData.write_data(): Object method that writes the pandas DataFrame object to file. The method can take
-      file_type and file_name as optional parameters. file_type indicates what file format to use when writing the data
+      file_type and file_name as optional arguments. file_type indicates what file format to use when writing the data
       set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. file_name takes a string to
       indicate what the file name should be saved as; default set to the search term provided.
     """
@@ -191,7 +192,7 @@ class GetRedditData:
         """
         A method for saving Reddit data to file.
 
-        Parameters:
+        Arguments:
 
         - file_type: Accepts a string of either 'json' or 'csv'; default set to 'json'.
 
@@ -220,7 +221,7 @@ class GetRedditNetwork:
     """
     A class object for generating edge and node lists, and a NetworkX graph object from a Reddit data set.
 
-    Parameters:
+    Arguments:
 
     - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
 
@@ -369,15 +370,21 @@ class GetRedditNetwork:
         attrs = {}
         edge_list_index = 0
         for n1, n2, subreddit in zip(edge_list.poster, edge_list.commenter, edge_list.subreddit):
-            edge_attr_dict = {}
-            edge_attr_dict = {**edge_attr_dict, **{'subreddit': subreddit}}
+            if (n1, n2) not in attrs.keys():
+                edge_attr_dict = {}
+                edge_attr_dict = {**edge_attr_dict, **{'subreddit': subreddit,
+                                                       'weight': len(edge_list[(edge_list.poster == n1) &
+                                                                               (edge_list.commenter == n2)])}}
 
-            if self.text_attribute is not False:
-                for col in text_attribute_columns:
-                    edge_attr_dict = {**edge_attr_dict, **{col: edge_list[col][edge_list_index]}}
+                if self.text_attribute is not False:
+                    for col in text_attribute_columns:
+                        edge_attr_dict = {**edge_attr_dict, **{col: edge_list[col][edge_list_index]}}
 
-            edge_list_index += 1
-            attrs[(n1, n2)] = edge_attr_dict
+                edge_list_index += 1
+                attrs[(n1, n2)] = edge_attr_dict
+
+            else:
+                continue
 
         nx.set_edge_attributes(graph_object, attrs)
 
@@ -441,7 +448,7 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
     """
     A function for extracting basic statistics for single or batch subreddit networks.
 
-    Parameters:
+    Arguments:
 
     - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
 
@@ -508,7 +515,7 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
     A function for extracting basic statistics for single or batch Reddit threads (initiated by Reddit
     submissions).
 
-    Parameters:
+    Arguments:
 
     - reddit_dataset: The only required argument. Takes a Reddit data set or a GetRedditData object.
 
@@ -670,3 +677,82 @@ def add_post_type_column(df):
         df['post_type'] = post_type
 
     return df
+
+
+def single_network_plot(network=None, **kwargs):
+
+    """
+    A simple function for plotting networks via NetworkX and Matplotlib (additional install required). Please note this
+    function is currently a work in progress and is meant to be basic tool to plot a single graph. See NetworkX
+    documentation for more advanced plotting needs.
+
+    Arguments:
+
+    - network: The only required argument. Takes a GetRedditNetwork or NetworkX graph object.
+
+    - title: Optional string argument to add a title to the plot.
+
+    - pos: Optional string argument to set the NetworkX plotting algorithm. For ease of use, the argument currently
+      accepts one of the following layout types as a string:
+
+      - 'spring_layout' (default)
+      - 'kamada_kawai_layout'
+      - 'circular_layout'
+      - 'random_layout'
+
+    - **kwargs: The function also accepts several other NetworkX keyword arguments for plotting (please see NetworkX
+      documentation for more info on these arguments). Currently accepted arguments include:
+
+      - 'arrows' (bool)
+      - 'arrowsize' (int)
+      - 'edge_color' (str or list/array)
+      - 'node_color' (str or list/array)
+      - 'node_size' (str or list/array)
+      - 'width' (int/float or list/array)
+      - 'with_labels' (bool)
+    """
+    import matplotlib.pyplot as plt
+
+    if network is not None:
+        if 'GetRedditNetwork' in str(type(network)):
+            G = network.graph
+        else:
+            G = network
+
+    # node attributes
+    with_labels = kwargs.get('with_labels', False)
+    node_color = kwargs.get('node_color', 'black')
+    node_size = kwargs.get('node_size', 30)
+
+    # edge attributes
+    edge_color = kwargs.get('edge_color', 'grey')
+    width = kwargs.get('width', 1)
+    arrows = kwargs.get('arrows', None)
+    arrowsize = kwargs.get('arrowsize', 10)
+
+    # general plot attributes
+    title = kwargs.get('title', None)
+    pos = kwargs.get('pos', 'spring_layout')
+
+    plt.figure()
+    plt.title(title)
+
+    layouts = {'spring_layout': nx.spring_layout(G),
+               'kamada_kawai_layout': nx.kamada_kawai_layout(G),
+               'circular_layout': nx.circular_layout(G),
+               'random_layout': nx.random_layout(G)}
+
+    pos = layouts.get(pos.lower(), 'spring_layout')
+
+    plt_kwargs = {'pos': pos,
+                  'edge_color': edge_color,
+                  'node_color': node_color,
+                  'with_labels': with_labels,
+                  'node_size': node_size,
+                  'width': width,
+                  'arrows': arrows,
+                  'arrowsize': arrowsize}
+
+    nx.draw_networkx(G, **plt_kwargs)
+
+    plt.show()
