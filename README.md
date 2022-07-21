@@ -30,7 +30,7 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 **Current version:**
 
-0.1.1 (released 07/20/22)
+0.1.2 (released 07/21/22)
 
 **Import RNT library:**
 
