@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.1,
+Version number: 0.1.2,
 Author: Jacob A. Rohde,
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks.
@@ -95,7 +95,7 @@ class GetRedditData:
             collection_type = 'search term(s).'
 
         if limit is None:
-            search_string_prompt = f'Collecting all submissions and comments from the "{self.search_term}" ' \
+            search_string_prompt = f'Collecting all submissions and their comments from the "{self.search_term}" ' \
                                    f'{collection_type}'
 
         else:
@@ -114,23 +114,31 @@ class GetRedditData:
         else:
             submission_kwargs['q'] = self.search_term
 
-        submissions_data = api.search_submissions(**submission_kwargs)
+        submissions_api_response = api.search_submissions(**submission_kwargs)
+        submissions_data = [row for row in submissions_api_response]
+        submission_ids = [row['id'] for row in submissions_data]
 
-        submissions_data = [row for row in submissions_data]
+        comment_calls = 500
+        comment_bins = [submission_ids[i:i + comment_calls] for i in range(0, len(submission_ids), comment_calls)]
 
-        submission_ids = [row['id'] for row in submissions_data if row['num_comments'] > 0]
+        comments_data = []
+        bin_index = 1
 
-        comment_kwargs = {'q': '*', 'link_id': submission_ids, 'mem_safe': True}
+        for comment_bin in comment_bins:
+            print(f'Collecting comments (batch {bin_index} of {len(comment_bins)}).')
+            comment_kwargs = {'q': '*', 'link_id': comment_bin, 'mem_safe': True}
+            comments_api_response = api.search_comments(**comment_kwargs)
 
-        comments_data = api.search_comments(**comment_kwargs)
+            for comment in comments_api_response:
+                comments_data.append(comment)
 
-        comments_data = [comment for comment in comments_data]
+            bin_index += 1
 
         collected_data_list = submissions_data + comments_data
 
         title, body, selftext, author, score, created_utc, id, \
-            link_id, parent_id, subreddit, num_comments, distinguished, post_type = \
-            [], [], [], [], [], [], [], [], [], [], [], [], []
+            link_id, parent_id, subreddit, post_type = \
+            [], [], [], [], [], [], [], [], [], [], []
 
         for row in collected_data_list:
             author.append(row['author'])
@@ -143,19 +151,15 @@ class GetRedditData:
                 title.append('')
                 selftext.append('')
                 body.append(row['body'])
-                num_comments.append('')
                 link_id.append(row['link_id'])
                 parent_id.append(row['parent_id'])
-                distinguished.append(row['distinguished'])
                 post_type.append('c')
 
             else:
                 title.append(row['title'])
                 body.append('')
-                num_comments.append(row['num_comments'])
                 link_id.append('')
                 parent_id.append('')
-                distinguished.append('')
                 post_type.append('s')
                 try:
                     selftext.append(row['selftext'])
@@ -163,14 +167,14 @@ class GetRedditData:
                     selftext.append('')
 
         df = pd.DataFrame(list(zip(title, body, selftext, author, score, created_utc, id,
-                                   link_id, parent_id, subreddit, num_comments, distinguished, post_type)),
+                                   link_id, parent_id, subreddit, post_type)),
                           columns=['title', 'body', 'selftext', 'author', 'score', 'created_utc', 'id',
-                                   'link_id', 'parent_id', 'subreddit', 'num_comments', 'distinguished', 'post_type'])
+                                   'link_id', 'parent_id', 'subreddit', 'post_type'])
 
         df['created'] = df.created_utc.apply(lambda x: datetime.utcfromtimestamp(x))
 
-        df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'num_comments', 'parent_id',
-                 'score', 'distinguished', 'link_id', 'created_utc', 'created', 'post_type']]
+        df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'parent_id',
+                 'score', 'link_id', 'created_utc', 'created', 'post_type']]
 
         df = df.sort_values(by='created_utc')
         df = df.reset_index(drop=True)
@@ -335,8 +339,8 @@ class GetRedditNetwork:
             author_list = [author] * len(commenter_list)
             subreddit_list = [thread_subreddit] * len(commenter_list)
 
-            thread_edge_df = pd.DataFrame(list(zip(author_list, commenter_list, subreddit_list)),
-                             columns=['poster', 'commenter', 'subreddit'])
+            thread_edge_df = pd.DataFrame(list(zip(commenter_list, author_list, subreddit_list)),
+                             columns=['source', 'target', 'subreddit'])
 
             if self.text_attribute is not False:
                 for col in text_attribute_columns:
@@ -345,36 +349,31 @@ class GetRedditNetwork:
             edge_dfs.append(thread_edge_df)
 
         edge_list = pd.concat(edge_dfs, ignore_index=True)
-        edge_list = edge_list.loc[edge_list.commenter != '']
+        edge_list = edge_list.loc[edge_list.source != '']
 
         edge_list = edge_list.reset_index(drop=True)
 
-        in_degree_values, out_degree_values, node_subreddits = [], [], []
+        node_subreddits = []
 
         for node in nodes:
-            in_degree_values.append(len(edge_list.loc[edge_list.poster == node]))
-            out_degree_values.append(len(edge_list.loc[edge_list.commenter == node]))
             node_subreddits.append(list(df.loc[df.author == node].subreddit.unique()))
-
-        node_list = pd.DataFrame(list(zip(nodes, in_degree_values, out_degree_values, node_subreddits)),
-                                 columns=['nodes', 'in_degree', 'out_degree', 'node_subreddits'])
 
         graph_object = nx.DiGraph()
 
         for node, attribute in zip(nodes, node_subreddits):
             graph_object.add_node(node, subreddit_list=attribute)
 
-        for n1, n2 in zip(edge_list.poster, edge_list.commenter):
+        for n1, n2 in zip(edge_list.source, edge_list.target):
             graph_object.add_edge(n1, n2)
 
         attrs = {}
         edge_list_index = 0
-        for n1, n2, subreddit in zip(edge_list.poster, edge_list.commenter, edge_list.subreddit):
+        for n1, n2, subreddit in zip(edge_list.source, edge_list.target, edge_list.subreddit):
             if (n1, n2) not in attrs.keys():
                 edge_attr_dict = {}
                 edge_attr_dict = {**edge_attr_dict, **{'subreddit': subreddit,
-                                                       'weight': len(edge_list[(edge_list.poster == n1) &
-                                                                               (edge_list.commenter == n2)])}}
+                                                       'weight': len(edge_list[(edge_list.source == n1) &
+                                                                               (edge_list.target == n2)])}}
 
                 if self.text_attribute is not False:
                     for col in text_attribute_columns:
@@ -388,11 +387,28 @@ class GetRedditNetwork:
 
         nx.set_edge_attributes(graph_object, attrs)
 
+        degree, in_degree_values, out_degree_values = [], [], []
+
+        for node in nodes:
+            degree.append(graph_object.degree(node))
+            in_degree_values.append(graph_object.in_degree(node))
+            out_degree_values.append(graph_object.out_degree(node))
+
+        node_list = pd.DataFrame(list(zip(nodes, degree, in_degree_values, out_degree_values, node_subreddits)),
+                                 columns=['node', 'degree', 'in_degree', 'out_degree', 'node_subreddits'])
+
         if self.edge_type.lower() == 'undirected':
             graph_object = graph_object.to_undirected()
 
-        self.edge_list = edge_list
+        pandas_edge_list = nx.to_pandas_edgelist(graph_object)
+
+        if len(pandas_edge_list) != 0:
+            el_columns = ['source', 'target', 'weight', 'subreddit']
+            el_columns = el_columns + [column for column in edge_list.columns if column not in el_columns]
+            pandas_edge_list = pandas_edge_list[el_columns]
+
         self.node_list = node_list
+        self.edge_list = pandas_edge_list
         self.graph = graph_object
 
     def __repr__(self):
@@ -481,6 +497,7 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
     first_subreddit = True
     for subreddit in subreddit_list:
         subreddit_df = df.loc[df.subreddit == subreddit]
+
         subreddit_graph = GetRedditNetwork(subreddit_df).graph
 
         connected_components = sorted(nx.strongly_connected_components(subreddit_graph), key=len, reverse=True)
@@ -588,7 +605,6 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
                        'thread_id': thread,
                        'date': list(author_df.created)[0],
                        'subreddit': list(author_df.subreddit)[0],
-                       'distinguished': list(author_df.distinguished)[0],
                        'score': list(author_df.score)[0],
                        'num_unique_responders': num_unique_responders,
                        'earliest_response_time': earliest_response_time,
@@ -653,8 +669,8 @@ def merge_reddit_submissions_and_comments(submissions_dataset, comments_dataset)
 
     df['created'] = df.created_utc.apply(lambda x: datetime.utcfromtimestamp(int(x)))
 
-    df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'num_comments', 'parent_id',
-             'score', 'distinguished', 'link_id', 'created_utc', 'created', 'post_type']]
+    df = df[['author', 'title', 'selftext', 'body', 'id', 'subreddit', 'parent_id',
+             'score', 'link_id', 'created_utc', 'created', 'post_type']]
 
     df = df.sort_values(by='created_utc')
     df = df.reset_index(drop=True)
@@ -679,7 +695,7 @@ def add_post_type_column(df):
     return df
 
 
-def single_network_plot(network=None, **kwargs):
+def single_network_plot(network, **kwargs):
 
     """
     A simple function for plotting networks via NetworkX and Matplotlib (additional install required). Please note this
@@ -713,11 +729,14 @@ def single_network_plot(network=None, **kwargs):
     """
     import matplotlib.pyplot as plt
 
-    if network is not None:
-        if 'GetRedditNetwork' in str(type(network)):
-            G = network.graph
-        else:
-            G = network
+    if 'GetRedditNetwork' in str(type(network)):
+        G = network.graph
+
+    elif 'networkx.classes' in str(type(network)):
+        G = network
+
+    else:
+        G = None
 
     # node attributes
     with_labels = kwargs.get('with_labels', False)
@@ -737,22 +756,27 @@ def single_network_plot(network=None, **kwargs):
     plt.figure()
     plt.title(title)
 
-    layouts = {'spring_layout': nx.spring_layout(G),
-               'kamada_kawai_layout': nx.kamada_kawai_layout(G),
-               'circular_layout': nx.circular_layout(G),
-               'random_layout': nx.random_layout(G)}
+    if G is not None:
+        layouts = {'spring_layout': nx.spring_layout(G),
+                   'kamada_kawai_layout': nx.kamada_kawai_layout(G),
+                   'circular_layout': nx.circular_layout(G),
+                   'random_layout': nx.random_layout(G)}
 
-    pos = layouts.get(pos.lower(), 'spring_layout')
+        pos = layouts.get(pos.lower(), 'spring_layout')
 
-    plt_kwargs = {'pos': pos,
-                  'edge_color': edge_color,
-                  'node_color': node_color,
-                  'with_labels': with_labels,
-                  'node_size': node_size,
-                  'width': width,
-                  'arrows': arrows,
-                  'arrowsize': arrowsize}
+        plt_kwargs = {'pos': pos,
+                      'edge_color': edge_color,
+                      'node_color': node_color,
+                      'with_labels': with_labels,
+                      'node_size': node_size,
+                      'width': width,
+                      'arrows': arrows,
+                      'arrowsize': arrowsize}
 
-    nx.draw_networkx(G, **plt_kwargs)
+        nx.draw_networkx(G, **plt_kwargs)
 
-    plt.show()
+        plt.show()
+
+    else:
+        print(f'Error: network argument expected GetRedditNetwork or networkx graph object; '
+              f'received {type(network)} instead.')
