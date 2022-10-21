@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="rnt",
-    version="0.1.2",
+    version="0.1.3",
     author="Jacob Rohde",
     author_email="jarohde1@gmail.com",
     description="A simple tool for generating and analyzing Reddit networks.",
@@ -20,5 +20,5 @@ setuptools.setup(
     package_dir={"": "src"},
     packages=setuptools.find_packages(where="src"),
     python_requires=">=3.6",
-    install_requires=['networkx', 'pandas', 'pmaw']
+    install_requires=['networkx', 'pandas', 'pmaw', 'numpy']
 )
