@@ -30,7 +30,7 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 **Current version:**
 
-0.1.2 (released 07/21/22)
+0.1.3 (released 10/21/22)
 
 **Import RNT library:**
 
@@ -98,9 +98,11 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 `GetRedditNetwork.node_list`: Returns a pandas DataFrame of the network node list with columns for each unique node, the node's in-degree and out-degree values, and a list of subreddits the node participated in within the network.
 
+`GetRedditNetwork.adjacency`: Returns a dictionary of network adjacency matrices. Both weighted and unweighted matrices are returned by default. The dictionary will also return weighted adjacency matrices for each optional edge-based text attribute that users identified when creating the class.
+
 `GetRedditNetwork.graph`: Returns a NetworkX graph object.
 
-`GetRedditNetwork.write_data()`: Object method that writes the `edge_list` and `node_list` attributes to file. The method can take `file_type` and `file_name` as optional arguments. `file_type` indicates what file format to use when writing the data sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what to append at the end of the edge and node list file names (e.g., `file_name='apple'` will save the files as 'edge_list_apple.json' and 'node_list_apple.json').
+`GetRedditNetwork.write_data()`: Object method that writes `edge_list` and `node_list` data sets to file. The method takes `file_type`, `file_name`, and `adjacency` as optional arguments. `file_type` indicates what file format to use when writing the data sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what to append at the end of the edge and node list file names (e.g., `file_name='apple'` will save the files as 'edge_list_apple.json' and 'node_list_apple.json'). `adjacency` accepts a boolean and indicates whether to save the data sets as adjacency matrices instead of edge and node lists.
 
 ### subreddit_statistics()
 
@@ -150,14 +152,17 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 -   'arrows' (bool)
 -   'arrowsize' (int)
 -   'edge_color' (str or list/array)
+-   'font_size' (int)
 -   'node_color' (str or list/array)
 -   'node_size' (str or list/array)
+-   'verticalalignment' (str)
 -   'width' (int/float or list/array)
 -   'with_labels' (bool)
 
 ## Requirements
 
 -   Python 3.XX
+-   numpy - a Python library for handling arrays and matrices
 -   pandas - a Python library for data management
 -   NetworkX - a Python library for network analysis
 -   PMAW - a multithread tool for extracting Reddit data via the [Pushshift API](https://pushshift.io/api-parameters/)
