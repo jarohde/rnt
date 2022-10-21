@@ -1,9 +1,9 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.2,
-Author: Jacob A. Rohde,
+Version number: 0.1.3 (released 10/21/2022)
+Author: Jacob A. Rohde
 Author_email: jarohde1@gmail.com
-Description: A simple tool for generating and analyzing Reddit networks.
+Description: A simple tool for generating and analyzing Reddit networks
 Github url: https://github.com/jarohde/rnt
 License: MIT
 """
@@ -13,6 +13,7 @@ __all__ = ['GetRedditData', 'GetRedditNetwork', 'subreddit_statistics', 'reddit_
 
 import pandas as pd
 import networkx as nx
+import numpy as np
 from pmaw import PushshiftAPI
 from datetime import datetime, timedelta
 from math import nan
@@ -250,13 +251,19 @@ class GetRedditNetwork:
     - GetRedditNetwork.node_list: Returns a pandas DataFrame of the network node list with columns for each unique node,
       the node's in-degree and out-degree values, and a list of subreddits the node participated in within the network.
 
+    - GetRedditData.adjacency: Returns a dictionary of network adjacency matrices. By default, both weighted and
+      unweighted matrices are returned. The dictionary will also return weighted adjacency matrices for each optional
+      edge-based text attribute that users identified when creating the class.
+
     - GetRedditNetwork.graph: Returns a NetworkX graph object.
 
     Methods:
 
-    - GetRedditData.write_data(): Object method that writes the edge_list and node_list attributes to file. The method
-      can take file_type as an optional parameter. file_type indicates what file format to use when writing the data
-      sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'.
+    - GetRedditData.write_data(): Object method that writes edge_list and node_list data sets to file. The method
+      takes file_type, file_name, and adjacency as optional parameters. file_type indicates what file format to use when
+      writing the data sets and accepts a string argument of either 'json' or 'csv'; default set to 'json'. file_name
+      accepts a string to indicate what name to save the files as. adjacency accepts a boolean and indicates whether to
+      write the data sets as adjacency matrices instead of edge and node lists.
     """
 
     def __init__(self, reddit_dataset, **kwargs):
@@ -267,6 +274,7 @@ class GetRedditNetwork:
         self.edge_by = kwargs.get('edge_by', 'link_id')
         self.edge_list = pd.DataFrame
         self.node_list = pd.DataFrame
+        self.adjacency = dict
         self.graph = nx.Graph
 
         if 'GetRedditData' in str(type(self.reddit_dataset)):
@@ -407,8 +415,37 @@ class GetRedditNetwork:
             el_columns = el_columns + [column for column in edge_list.columns if column not in el_columns]
             pandas_edge_list = pandas_edge_list[el_columns]
 
+        weighted_adj_matrix = nx.to_pandas_adjacency(graph_object)
+        np.fill_diagonal(weighted_adj_matrix.values, nan)
+
+        unweighted_adj_matrix = nx.to_pandas_adjacency(graph_object)
+        unweighted_adj_matrix[unweighted_adj_matrix > 1] = 1
+        np.fill_diagonal(unweighted_adj_matrix.values, nan)
+
+        matrices = {'weighted_adj_matrix': weighted_adj_matrix,
+                    'unweighted_adj_matrix': unweighted_adj_matrix}
+
+        text_attribute_columns = [column for column in pandas_edge_list.columns if 'text_attribute' in column]
+
+        for column in text_attribute_columns:
+            adj_matrix = nx.to_pandas_adjacency(graph_object)
+            adj_matrix[:] = 0
+
+            for u, v, attribute in zip(pandas_edge_list.source, pandas_edge_list.target, pandas_edge_list[column]):
+                if attribute == 'True':
+                    cell_loading = 1
+
+                else:
+                    cell_loading = 0
+
+                adj_matrix.at[u, v] = cell_loading
+
+            np.fill_diagonal(adj_matrix.values, nan)
+            matrices[column + '_matrix'] = adj_matrix
+
         self.node_list = node_list
         self.edge_list = pandas_edge_list
+        self.adjacency = matrices
         self.graph = graph_object
 
     def __repr__(self):
@@ -425,39 +462,57 @@ class GetRedditNetwork:
 
         Parameter:
 
-        - file_type: Accepts a string of either 'json' or 'csv'; default set to 'json'.
+        - file_type: Accepts a string of either 'json' or 'csv'; default set to 'csv'.
 
         - file_name: Accepts a string to indicate what the edge and node list files should be saved as; default set to
           'edge_list' and 'node_list'.
+
+        - adjacency: Accepts a boolean; default set to False. If True, adjacency matrices of the network (including
+          matrices of all edge attributes) are saved as csv files.
+
         """
 
-        file_type = kwargs.get('file_type', 'json')
+        file_type = kwargs.get('file_type', 'csv')
         file_name = kwargs.get('file_name', '')
-        file_list = ['node_list', 'edge_list']
+        adjacency = kwargs.get('adjacency', False)
 
         if file_type.lower() != 'json' and file_type.lower() != 'csv' or type(file_type) != str:
             return 'Error: File type only supports .csv or .json extensions.'
 
-        for file in file_list:
-            if type(file_name) is str and file_name != '':
-                f_name = f'{file}_{file_name}'
-            else:
-                f_name = file
+        if adjacency:
+            matrices = self.adjacency
 
-            name = f'{f_name}.{file_type.lower()}'
-            print(f'Writing {f_name} to file.')
-
-            if file_type.lower() == 'json':
-                if file == 'node_list':
-                    self.node_list.to_json(name, orient='records', lines=True)
+            for matrix in matrices:
+                if type(file_name) is str and file_name != '':
+                    f_name = f'{matrix}_{file_name}.csv'
                 else:
-                    self.edge_list.to_json(name, orient='records', lines=True)
+                    f_name = f'{matrix}.csv'
 
-            if file_type.lower() == 'csv':
-                if file == 'node_list':
-                    self.node_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+                print(f'Writing {f_name} to file.')
+                matrices[matrix].to_csv(f_name, index=True, header=True, encoding='utf-8', na_rep='nan')
+
+        else:
+            file_list = ['node_list', 'edge_list']
+            for file in file_list:
+                if type(file_name) is str and file_name != '':
+                    f_name = f'{file}_{file_name}'
                 else:
-                    self.edge_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+                    f_name = file
+
+                name = f'{f_name}.{file_type.lower()}'
+                print(f'Writing {name} to file.')
+
+                if file_type.lower() == 'json':
+                    if file == 'node_list':
+                        self.node_list.to_json(name, orient='records', lines=True)
+                    else:
+                        self.edge_list.to_json(name, orient='records', lines=True)
+
+                if file_type.lower() == 'csv':
+                    if file == 'node_list':
+                        self.node_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+                    else:
+                        self.edge_list.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
 
 
 def subreddit_statistics(reddit_dataset, subreddit_list=None):
@@ -722,8 +777,10 @@ def single_network_plot(network, **kwargs):
       - 'arrows' (bool)
       - 'arrowsize' (int)
       - 'edge_color' (str or list/array)
+      - 'font_size' (int)
       - 'node_color' (str or list/array)
       - 'node_size' (str or list/array)
+      - 'verticalalignment' (str)
       - 'width' (int/float or list/array)
       - 'with_labels' (bool)
     """
@@ -742,6 +799,8 @@ def single_network_plot(network, **kwargs):
     with_labels = kwargs.get('with_labels', False)
     node_color = kwargs.get('node_color', 'black')
     node_size = kwargs.get('node_size', 30)
+    verticalalignment = kwargs.get('verticalalignment', 'center')
+    font_size = kwargs.get('font_size', 8)
 
     # edge attributes
     edge_color = kwargs.get('edge_color', 'grey')
@@ -768,6 +827,8 @@ def single_network_plot(network, **kwargs):
                       'edge_color': edge_color,
                       'node_color': node_color,
                       'with_labels': with_labels,
+                      'verticalalignment': verticalalignment,
+                      'font_size': font_size,
                       'node_size': node_size,
                       'width': width,
                       'arrows': arrows,
