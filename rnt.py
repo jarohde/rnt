@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.3 (released 10/21/2022)
+Version number: 0.1.4 (released 01/03/2023)
 Author: Jacob A. Rohde
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks
@@ -75,19 +75,19 @@ class GetRedditData:
 
         if self.start_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            after = [int(d) for d in self.start_date.split(',')]
-            after = int(datetime(after[0], after[1], after[2], 0, 0).timestamp())
+            since = [int(d) for d in self.start_date.split(',')]
+            since = int(datetime(since[0], since[1], since[2], 0, 0).timestamp())
 
         else:
-            after = int(str(datetime.timestamp(datetime.today() - timedelta(days=7))).split('.')[0])
+            since = int(str(datetime.timestamp(datetime.today() - timedelta(days=7))).split('.')[0])
 
         if self.end_date is not None:
             # Format: '2022, 5, 27' for May 27, 2022
-            before = [int(d) for d in self.end_date.split(',')]
-            before = int(datetime(before[0], before[1], before[2], 0, 0).timestamp())
+            until = [int(d) for d in self.end_date.split(',')]
+            until = int(datetime(until[0], until[1], until[2], 0, 0).timestamp())
 
         else:
-            before = today
+            until = today
 
         if self.search_term_is_subreddit:
             collection_type = 'subreddit.'
@@ -96,18 +96,17 @@ class GetRedditData:
             collection_type = 'search term(s).'
 
         if limit is None:
-            search_string_prompt = f'Collecting all submissions and their comments from the "{self.search_term}" ' \
-                                   f'{collection_type}'
+            search_string_prompt = f'Collecting all submissions from the "{self.search_term}" {collection_type}'
 
         else:
-            search_string_prompt = f'Collecting {limit} submissions and their comments from the "{self.search_term}" ' \
+            search_string_prompt = f'Collecting up to {limit} submissions from the "{self.search_term}" ' \
                                    f'{collection_type}'
 
         print(search_string_prompt)
 
         api = PushshiftAPI()
 
-        submission_kwargs = {'limit': limit, 'after': after, 'before': before, 'mem_safe': True}
+        submission_kwargs = {'limit': limit, 'since': since, 'until': until, 'mem_safe': True}
 
         if self.search_term_is_subreddit:
             submission_kwargs['subreddit'] = self.search_term
@@ -751,7 +750,6 @@ def add_post_type_column(df):
 
 
 def single_network_plot(network, **kwargs):
-
     """
     A simple function for plotting networks via NetworkX and Matplotlib (additional install required). Please note this
     function is currently a work in progress and is meant to be basic tool to plot a single graph. See NetworkX
@@ -784,6 +782,7 @@ def single_network_plot(network, **kwargs):
       - 'width' (int/float or list/array)
       - 'with_labels' (bool)
     """
+
     import matplotlib.pyplot as plt
 
     if 'GetRedditNetwork' in str(type(network)):
