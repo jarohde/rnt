@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="rnt",
-    version="0.1.3",
+    version="0.1.4",
     author="Jacob Rohde",
     author_email="jarohde1@gmail.com",
     description="A simple tool for generating and analyzing Reddit networks.",
