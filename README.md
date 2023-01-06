@@ -30,9 +30,9 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 **Current version:**
 
-0.1.4 (released 01/03/23)
+0.1.5 (released 01/05/2023)
 
-*Note: The minor changes in this release reflect Pushshift's modified endpoints after their recent server migration. There are still many Pushshift bugs and timeouts that may affect how the* `GetRedditData()` *feature in this package works. I will be sure to address future bugs ASAP.*
+*Note: The minor changes in this release reflect Pushshift's modified endpoints after the recent server migration. There are still some Pushshift bugs and timeouts that may affect how the* `GetRedditData()` *feature in this package works. I will be sure to address future bugs ASAP.*
 
 **Import RNT library:**
 
