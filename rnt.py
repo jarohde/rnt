@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.4 (released 01/03/2023)
+Version number: 0.1.5 (released 01/05/2023)
 Author: Jacob A. Rohde
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks
@@ -125,6 +125,8 @@ class GetRedditData:
         bin_index = 1
 
         for comment_bin in comment_bins:
+            comment_bin = [str(int(c_id, 36)) for c_id in comment_bin]
+            comment_bin = ','.join(comment_bin)
             print(f'Collecting comments (batch {bin_index} of {len(comment_bins)}).')
             comment_kwargs = {'q': '*', 'link_id': comment_bin, 'mem_safe': True}
             comments_api_response = api.search_comments(**comment_kwargs)
