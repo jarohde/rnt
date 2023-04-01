@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.5 (released 01/05/2023)
+Version number: 0.1.6 (released 03/31/2023)
 Author: Jacob A. Rohde
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks
@@ -221,6 +221,38 @@ class GetRedditData:
 
             if file_type.lower() == 'csv':
                 self.df.to_csv(name, index=False, header=True, encoding='utf-8', na_rep='nan')
+
+    def extract_urls(self):
+        """
+        Method to extract and append a list of URLs and URL domains to the data set.
+        """
+
+        from .url_functions import url_functions as rnt_url
+
+        url_list = []
+        domain_list = []
+        number_of_urls = []
+
+        for index, row in self.df.iterrows():
+            if row.post_type == 's':
+                if row.selftext != '':
+                    text = row.title + ' ' + row.selftext
+
+                else:
+                    text = row.title
+
+            else:
+                text = row.body
+
+            post_urls = rnt_url.url_extractor(text)
+
+            url_list.append(post_urls)
+            domain_list.append(rnt_url.domain_extractor(text))
+            number_of_urls.append(len(post_urls))
+
+        self.df['url_list'] = url_list
+        self.df['domain_list'] = domain_list
+        self.df['number_of_urls'] = number_of_urls
 
 
 class GetRedditNetwork:
@@ -560,10 +592,27 @@ def subreddit_statistics(reddit_dataset, subreddit_list=None):
         strongest_connected_component = subreddit_graph.subgraph(connected_components[0])
         degrees = [subreddit_graph.degree(node) for node in subreddit_graph.nodes()]
 
+        if 'url_list' in subreddit_df.columns:
+            num_submissions_with_urls = len(subreddit_df.loc[(subreddit_df.post_type == 's') &
+                                                             (subreddit_df.number_of_urls > 0)])
+
+            num_comments_with_urls = len(subreddit_df.loc[(subreddit_df.post_type == 'c') &
+                                                             (subreddit_df.number_of_urls > 0)])
+
+            num_posts_with_urls = len(subreddit_df.loc[subreddit_df.number_of_urls > 0])
+
+        else:
+            num_submissions_with_urls = ''
+            num_comments_with_urls = ''
+            num_posts_with_urls = ''
+
         subreddit_stats_dict = {'subreddit': subreddit,
                                 'num_overall_posts': len(subreddit_df),
                                 'num_submissions': len(subreddit_df.loc[subreddit_df.post_type == 's']),
                                 'num_comments': len(subreddit_df.loc[subreddit_df.post_type == 'c']),
+                                'num_submissions_with_urls': num_submissions_with_urls,
+                                'num_comments_with_urls': num_comments_with_urls,
+                                'num_posts_with_urls': num_posts_with_urls,
                                 'num_unique_users': len(subreddit_df.loc[subreddit_df.author != '[deleted]'].author.unique()),
                                 'density': nx.density(subreddit_graph),
                                 'number_graph_edges': len(subreddit_graph.edges()),
@@ -607,6 +656,8 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
 
     df = add_post_type_column(df)
 
+    contains_url_data = 'url_list' in df.columns
+
     if reddit_thread_list is not None:
         if type(reddit_thread_list) is list:
             reddit_thread_list = reddit_thread_list
@@ -633,6 +684,12 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
 
         num_responses = len(commenter_df)
 
+        if contains_url_data:
+            num_urls_posted_by_author = list(author_df.number_of_urls)[0]
+
+        else:
+            num_urls_posted_by_author = nan
+
         if num_responses > 0:
             num_unique_responders = len(commenter_df.author.unique())
             commenter_response_times = []
@@ -649,6 +706,12 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
             std_dev_response_time = pd.Series(commenter_response_times).std()
             median_response_time = pd.Series(commenter_response_times).median()
 
+            if contains_url_data:
+                num_commenters_posting_urls = len(commenter_df.loc[commenter_df.number_of_urls > 0])
+
+            else:
+                num_commenters_posting_urls = nan
+
         else:
             num_unique_responders = 0
             earliest_response_time = nan
@@ -656,18 +719,21 @@ def reddit_thread_statistics(reddit_dataset, reddit_thread_list=None):
             mean_response_time = nan
             std_dev_response_time = nan
             median_response_time = nan
+            num_commenters_posting_urls = nan
 
         thread_dict = {'author': thread_author,
                        'thread_id': thread,
                        'date': list(author_df.created)[0],
                        'subreddit': list(author_df.subreddit)[0],
                        'score': list(author_df.score)[0],
+                       'num_urls_posted_by_author': num_urls_posted_by_author,
                        'num_unique_responders': num_unique_responders,
                        'earliest_response_time': earliest_response_time,
                        'latest_response_time': latest_response_time,
                        'mean_response_time': mean_response_time,
                        'std_dev_response_time_seconds': std_dev_response_time,
-                       'median_response_time': median_response_time}
+                       'median_response_time': median_response_time,
+                       'num_commenters_posting_urls': num_commenters_posting_urls}
 
         if first_thread:
             thread_batch_dict = pd.DataFrame(thread_dict, index=range(0, 1))
