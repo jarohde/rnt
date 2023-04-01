@@ -26,13 +26,15 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 -   Can visualize simple graphs via Matplotlib.
 
+-   The "url_functions" sub-package provides additional features for extracting URL information from Reddit data.
+
 ## General
 
 **Current version:**
 
-0.1.5 (released 01/05/2023)
+0.1.6 (released 03/31/2023)
 
-*Note: The minor changes in this release reflect Pushshift's modified endpoints after the recent server migration. There are still some Pushshift bugs and timeouts that may affect how the* `GetRedditData()` *feature in this package works. I will be sure to address future bugs ASAP.*
+*Note: The minor changes in this release reflect Pushshift's modified endpoints after the recent server migration. There are still some Pushshift bugs and timeouts that may affect how the* `GetRedditData()` *feature in this package works. I will be sure to address future bugs ASAP. Version 0.1.6 also added a sub-package for extracting URL information from Reddit data*.
 
 **Import RNT library:**
 
@@ -75,6 +77,8 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 `GetRedditData.df`: Object attribute; extracts the Reddit data set as a pandas DataFrame object.
 
 `GetRedditData.write_data()`: Object method that writes the pandas DataFrame object to file. The method can take `file_type` and `file_name` as optional arguments. `file_type` indicates what file format to use when writing the data set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what the file name should be saved as; default set to the search term provided.
+
+`GetRedditData.extract_urls()`: Object method to extract and append a list of URLs and URL domains in the Reddit data set.
 
 ### GetRedditNetwork()
 
