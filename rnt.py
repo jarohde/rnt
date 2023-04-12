@@ -1,6 +1,6 @@
 """
 Package name: 'rnt' (Reddit Network Toolkit)
-Version number: 0.1.6 (released 03/31/2023)
+Version number: 0.1.7 (released 04/12/2023)
 Author: Jacob A. Rohde
 Author_email: jarohde1@gmail.com
 Description: A simple tool for generating and analyzing Reddit networks
@@ -50,6 +50,13 @@ class GetRedditData:
       file_type and file_name as optional arguments. file_type indicates what file format to use when writing the data
       set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. file_name takes a string to
       indicate what the file name should be saved as; default set to the search term provided.
+
+    - GetRedditData.extract_urls(): Object method to extract and append a list of URLs and URL domains to the data set.
+      This method takes no additional arguments.
+
+    - GetRedditData.anonymize_authors(): Object method to change Reddit usernames ('author' column) to anonymized random
+      character strings. The name of the column containing the original Reddit usernames will be changed to
+      'author_original'. This method takes no arguments.
     """
 
     def __init__(self, search_term, **kwargs):
@@ -253,6 +260,32 @@ class GetRedditData:
         self.df['url_list'] = url_list
         self.df['domain_list'] = domain_list
         self.df['number_of_urls'] = number_of_urls
+
+    def anonymize_authors(self):
+        """
+        Method to change Reddit usernames ('author' column) to anonymized random character strings. The name of the
+        column containing the original Reddit usernames will be changed to 'author_original'.
+        """
+        import random
+        import string
+
+        authors = self.df.author.unique()
+        author_mapping = {}
+
+        for author in authors:
+            if author == '[deleted]' or author == 'AutoModerator':
+                author_mapping[author] = author
+
+            else:
+                mapping_value = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
+
+                while mapping_value in author_mapping.values():
+                    mapping_value = ''.join([random.choice(string.ascii_letters) for _ in range(8)])
+
+                author_mapping[author] = mapping_value
+
+        self.df['author_original'] = self.df.author
+        self.df['author'] = self.df.author.map(author_mapping)
 
 
 class GetRedditNetwork:
