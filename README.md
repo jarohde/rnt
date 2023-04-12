@@ -32,7 +32,7 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 
 **Current version:**
 
-0.1.6 (released 03/31/2023)
+0.1.7 (released 04/12/2023)
 
 *Note: The minor changes in this release reflect Pushshift's modified endpoints after the recent server migration. There are still some Pushshift bugs and timeouts that may affect how the* `GetRedditData()` *feature in this package works. I will be sure to address future bugs ASAP. Version 0.1.6 also added a sub-package for extracting URL information from Reddit data*.
 
@@ -79,6 +79,8 @@ Email: [jarohde1\@gmail.com](mailto:jarohde1@gmail.com) \| Twitter: [\@jacobrohd
 `GetRedditData.write_data()`: Object method that writes the pandas DataFrame object to file. The method can take `file_type` and `file_name` as optional arguments. `file_type` indicates what file format to use when writing the data set and accepts a string argument of either 'json' or 'csv'; default set to 'json'. `file_name` takes a string to indicate what the file name should be saved as; default set to the search term provided.
 
 `GetRedditData.extract_urls()`: Object method to extract and append a list of URLs and URL domains in the Reddit data set.
+
+`GetRedditData.anonymize_authors()`: Object method to change Reddit usernames ('author' column) to anonymized random character strings. The name of the column containing the original Reddit usernames will be changed to 'author_original'. This method takes no arguments.
 
 ### GetRedditNetwork()
 
